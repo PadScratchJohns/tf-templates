@@ -1,0 +1,308 @@
+#####
+# shared values
+#####
+# tags
+tags = {
+  "BusinessCritical" = "No"
+  "Environment"      = "dev"
+  "Service"          = "SimpleProxy"
+  "Customer"         = "DevOps"
+}
+
+# loc
+location = "uksouth"
+# env
+environment = "dev"
+
+# RG name
+resource_group_name = "dev-uks-simple-proxy_rg"
+# Blob Storage stuff
+# backend (BK) RG for tfstate file storage: Silo3
+bk_resource_group_name = "mytfstatefiles_rg"
+# Storage account
+bk_accountstorage = "mytfstatefiles"
+# Container name
+bk_containerstorage = "mytfstatefiles"
+# tfstate file name
+bk_keynamestorage = "devsimpleproxy.tfstate"
+# Storage account in this 
+accountstorage = "devcarprobkups"
+# Container name
+containerstorage = "devcarprobkup"
+# tfstate file name - if using same RG blob for storage
+keynamestorage = "example.txt"
+
+# Subscription ID - find and replace all
+sub_id = "your-sub-id-here"
+# Tenant ID - overall tenant ID 
+ten_id = "your-tenant-id-here"
+# DEV vars
+saltmasterip = "192.168.252.201"
+# Private IP allocation vars - not used as statically set below but here for reference
+# VNET - 172.17 for simpro with 3rd octet being env
+virtual_network = {
+  name                    = "uks-dev-simpro-vnet"
+  address_space           = ["192.168.253.0/24"]
+}
+# Subnet - 172.17 for simpro
+subnet                    = "internal"
+address_prefixes          = ["192.168.253.0/24"]
+service_endpoints         = ["Microsoft.Storage"]
+# VNET split
+vnet_split                = "192.168.253"
+# linked VNET split - this is different to the rg's own subnet
+peered_vnet_split         = "192.168.252"
+virtual_network_name      = "uks-dev-simpro-vnet"
+# VNET linking - to backend shared services
+vnet_peering_link = {
+  "local_peer" = { # from this RG to BSS vnet
+    vnet_peering_name         = "dev-simple-proxy-vnet-link"
+    resource_group_name       = "dev-uks-simple-proxy_rg"
+    virtual_network_name      = "uks-dev-simpro-vnet"
+    remote_virtual_network_id = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/virtualNetworks/sharedservices-dev-virtual-network"
+  }
+  "remote_peer" = { # from BSS vnet to this RG
+    vnet_peering_name         = "dev-simple-proxy-vnet-link"
+    resource_group_name       = "dev-backend-shared-services-rg"
+    virtual_network_name      = "sharedservices-dev-virtual-network"
+    remote_virtual_network_id = "/subscriptions/your-sub-id-here/resourceGroups/dev-uks-simple-proxy_rg/providers/Microsoft.Network/virtualNetworks/uks-dev-simpro-vnet"
+  }
+}
+dns_zone_peering = {
+  "local_peering_to_remote" = { # from this RG to BSS vnet only is needed
+    name                      = "dev-simpro-proxy-dns-link"
+    resource_group_name       = "dev-backend-shared-services-rg"
+    private_dns_zone_name     = "example.com"
+    virtual_network_id        = "/subscriptions/your-sub-id-here/resourceGroups/dev-uks-simple-proxy_rg/providers/Microsoft.Network/virtualNetworks/uks-dev-simpro-vnet"
+  }
+}
+
+#####
+# Box specific variables]
+#####
+
+# Simple Proxy VM
+network_security_group = {
+    "dev-simpro-nsg" = {
+        name = "dev-simpro-nsg"
+  }
+}
+# DEV simpro VM nsg rules - start from >1000 priority.
+network_security_rule = {
+  "inbound-allow-ssh-max" = {
+    network_security_group_name          = "dev-simpro-nsg"
+    access                     = "Allow"
+    name                       = "MaxC-VPN-SSH-rule"
+    description                = "SSH Rule for MaxC VPN IPs"
+    destination_address_prefix = "*"
+    destination_port_range     = "22"
+    direction                  = "Inbound"
+    priority                   = "1010"
+    protocol                   = "Tcp"
+    source_address_prefixes    = ["1.2.3.4","5.6.7.8"]
+    source_port_range          = "*"
+  }
+  "inbound-allow-sip-Simples" = {
+    network_security_group_name          = "dev-simpro-nsg"
+    access                     = "Allow"
+    name                       = "Allow-5060-SIP-rule-Simple"
+    description                = "SIP port 5060 Simple rule"
+    destination_address_prefix = "*"
+    destination_port_range     = "5060"
+    direction                  = "Inbound"
+    priority                   = "1020"
+    protocol                   = "Udp"
+    source_address_prefixes    = ["1.2.3.4","5.6.7.8"]
+    source_port_range          = "*"
+  }
+  "inbound-allow-sip-customers" = {
+    network_security_group_name          = "dev-simpro-nsg"
+    access                     = "Allow"
+    name                       = "Allow-5060-SIP-rule-Customer"
+    description                = "SIP port 5060 Customer rule"
+    destination_address_prefix = "*"
+    destination_port_range     = "5060"
+    direction                  = "Inbound"
+    priority                   = "1030"
+    protocol                   = "Udp"
+    source_address_prefixes    = ["1.1.1.1","2.2.2.2"]
+    source_port_range          = "*"
+  }
+  "Nexbridge-ICMP-allow" = {
+    network_security_group_name          = "dev-simpro-nsg"
+    access                     = "Allow"
+    name                       = "Allow-ICMP-from-Nexbridge-rule"
+    description                = "ICMP Nexbridge allow"
+    destination_address_prefix = "*"
+    destination_port_range     = "*"
+    direction                  = "Inbound"
+    priority                   = "1040"
+    protocol                   = "Icmp"
+    source_address_prefixes    = ["1.2.3.4","5.6.7.8"]
+    source_port_range          = "*"
+  }
+}
+# DEV simpro IP settings.
+public_ip = {
+  "uksouth-dev-simple-proxy-1-1" = {
+    allocation_method = "Static"
+    sku               = "Standard"
+    sku_tier          = "Regional" # Default value
+    public_ip_name    = "dev-simple-proxy-1-wan-ip"
+    domain_name_label = "uksouth-dev-simple-proxy-1-1"
+    zones             = ["1"]
+  }
+  "uksouth-dev-simple-proxy-2-2" = {
+    allocation_method = "Static"
+    sku               = "Standard"
+    sku_tier          = "Regional" # Default value
+    public_ip_name    = "dev-simple-proxy-2-wan-ip"
+    domain_name_label = "uksouth-dev-simple-proxy-2-2"
+    zones             = ["2"]
+  }
+}
+
+# DEV simpro VM's - 2 in DEV
+# Each machine type should have its own "block" here with ALL vars for easier use of the for loop without
+linux_virtual_machine = {
+  "dev-simple-proxy-1" = {
+# VM
+#    admin_ssh_key = {
+#      public_key = "***"
+#      username   = "support"
+#    }
+    admin_username                  = "support"
+    allow_extension_operations      = true # default value
+    computer_name                   = "uksouth-dev-simple-proxy-1-1.example.com" # Hostname
+    disable_password_authentication = false
+    encryption_at_host_enabled      = true
+    name                            = "dev-simple-proxy-1" # VM name
+    size                            = "Standard_B2s"
+    zone                            = "1"
+    user_data                       = "../scripts/user_data/simple_vm.sh"
+# Disk
+    os_disk = {
+      caching              = "ReadWrite"
+      diff_disk_settings   = {} # default value
+      disk_size_gb         = 30
+      name                 = "dev-simple-proxy-1_OsDisk"
+      storage_account_type = "Standard_LRS" # DEV gets spinning rust 
+    }
+# OS ref
+    source_image_reference = {
+      offer     = "0001-com-ubuntu-server-jammy"
+      publisher = "Canonical"
+      sku       = "22_04-lts-gen2"
+      version   = "latest"
+    }
+# Network
+    ip_configuration = [{
+      name                          = "ipconfig1"
+      subnet_id                     = "/subscriptions/your-sub-id-here/resourceGroups/dev-uks-simple-proxy_rg/providers/Microsoft.Network/virtualNetworks/uks-dev-simpro-vnet/subnets/internal"
+      private_ip_address_allocation = "Static"
+      private_ip_address            = "192.168.253.221"
+      private_ip_address_version    = "IPv4"
+      public_ip_address_id          = "/subscriptions/your-sub-id-here/resourceGroups/dev-uks-simple-proxy_rg/providers/Microsoft.Network/publicIPAddresses/dev-simple-proxy-1-wan-ip"
+    }]
+    nic_name                        = "dev-simple-proxy-1-nic"
+    internal_dns_name_label         = "uksouth-dev-simple-proxy-1-1"
+    nsg_name                        = "dev-simpro-nsg"
+    nsg_id                          = "/subscriptions/your-sub-id-here/resourceGroups/dev-uks-simple-proxy_rg/providers/Microsoft.Network/networkSecurityGroups/dev-simpro-nsg"
+    nic_id                          = "/subscriptions/your-sub-id-here/resourceGroups/dev-uks-simple-proxy_rg/providers/Microsoft.Network/networkInterfaces/dev-simple-proxy-1-nic"
+  }
+  "dev-simple-proxy-2" = {
+# VM
+#    admin_ssh_key = {
+#      public_key = "***"
+#      username   = "support"
+#    }
+    admin_username                  = "support"
+    allow_extension_operations      = true # default value
+    computer_name                   = "uksouth-dev-simple-proxy-2-2.example.com" # Hostname
+    disable_password_authentication = false
+    encryption_at_host_enabled      = true
+    name                            = "dev-simple-proxy-2" # VM name
+    size                            = "Standard_B2s" # box sizing
+    zone                            = "2"
+    user_data                       = "../scripts/user_data/simple_vm.sh"
+# Disk
+    os_disk = {
+      caching              = "ReadWrite"
+      diff_disk_settings   = {} # default value
+      disk_size_gb         = 30
+      name                 = "dev-simple-proxy-2_OsDisk"
+      storage_account_type = "Standard_LRS" # DEV gets spinning rust 
+    }  
+# OS ref
+    source_image_reference = {
+      offer     = "0001-com-ubuntu-server-jammy"
+      publisher = "Canonical"
+      sku       = "22_04-lts-gen2"
+      version   = "latest"
+    }
+# Networking
+    ip_configuration = [{
+      name                          = "ipconfig1"
+      subnet_id                     = "/subscriptions/your-sub-id-here/resourceGroups/dev-uks-simple-proxy_rg/providers/Microsoft.Network/virtualNetworks/uks-dev-simpro-vnet/subnets/internal"
+      private_ip_address_allocation = "Static"
+      private_ip_address            = "192.168.253.222"
+      private_ip_address_version    = "IPv4"
+      public_ip_address_id          = "/subscriptions/your-sub-id-here/resourceGroups/dev-uks-simple-proxy_rg/providers/Microsoft.Network/publicIPAddresses/dev-simple-proxy-2-wan-ip"
+    }]
+    nic_name                        = "dev-simple-proxy-2-nic"
+    internal_dns_name_label         = "uksouth-dev-simple-proxy-2-2"
+    nsg_name                        = "dev-simpro-nsg"
+    nsg_id                          = "/subscriptions/your-sub-id-here/resourceGroups/dev-uks-simple-proxy_rg/providers/Microsoft.Network/networkSecurityGroups/dev-simpro-nsg"
+    nic_id                          = "/subscriptions/your-sub-id-here/resourceGroups/dev-uks-simple-proxy_rg/providers/Microsoft.Network/networkInterfaces/dev-simple-proxy-2-nic"
+  }
+}
+# Data disks attachments here
+managed_data_disk = {
+  "dev-simple-proxy-1-dd" = {
+    disk_name                     = "dev-simple-proxy-1_datadisk01"
+    storage_account_type          = "Standard_LRS"
+    create_option                 = "Empty"
+    disk_size_gb                  = 16
+    zone                          = "1"
+    #on_demand_bursting_enabled    = false
+    #public_network_access_enabled = false
+    #trusted_launch_enabled        = false
+    #upload_size_bytes             = 0
+  }
+  "dev-simple-proxy-2-dd" = {
+    disk_name                     = "dev-simple-proxy-2_datadisk01"
+    storage_account_type          = "Standard_LRS"
+    create_option                 = "Empty"
+    disk_size_gb                  = 16
+    zone                          = "2"
+    #on_demand_bursting_enabled    = false
+    #public_network_access_enabled = false
+    #trusted_launch_enabled        = false
+    #upload_size_bytes             = 0
+  }
+}
+# managed_data_disks_attachments
+managed_data_disks_attachment = {
+  "dev-simple-proxy-1-dd" = {
+    virtual_machine_id        = "/subscriptions/your-sub-id-here/resourceGroups/dev-uks-simple-proxy_rg/providers/Microsoft.Compute/virtualMachines/dev-simple-proxy-1"
+    managed_disk_id           = "/subscriptions/your-sub-id-here/resourceGroups/dev-uks-simple-proxy_rg/providers/Microsoft.Compute/disks/dev-simple-proxy-1_datadisk01"
+    lun                       = 1
+    caching                   = "None"
+    create_option             = "Attach"
+    write_accelerator_enabled = false
+  }
+  "dev-simple-proxy-2-dd" = {
+    virtual_machine_id        = "/subscriptions/your-sub-id-here/resourceGroups/dev-uks-simple-proxy_rg/providers/Microsoft.Compute/virtualMachines/dev-simple-proxy-2"
+    managed_disk_id           = "/subscriptions/your-sub-id-here/resourceGroups/dev-uks-simple-proxy_rg/providers/Microsoft.Compute/disks/dev-simple-proxy-2_datadisk01"
+    lun                       = 1
+    caching                   = "None"
+    create_option             = "Attach"
+    write_accelerator_enabled = false
+  }
+}
+# Availability set - if needed for ukw etc
+# management_availability_set
+management_availability_set = {
+  name                        = "dev-ukw-simpro-av"
+  platform_fault_domain_count = 2
+}

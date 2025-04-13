@@ -1,0 +1,225 @@
+# DEV pipeline - this is to deploy the DEV pipeline
+# Azurerm version is currently 3.74
+# Terraform version is 1.4.6
+# You will need to have created the RG and the storage account before running this config/pipeline - also you will need a managed service ID. Once done fill out the below 
+trigger: none
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  - name: resource_group_name #  for statefile
+    value: 'mytfstatefiles_rg'
+  - name: servicearm
+    value: 'your-msi-here'
+  - name: accountstorage
+    value: 'mytfstatefile'
+  - name: containerstorage
+    value: 'mytfstatefile'
+  - name: keynamestorage
+    value: 'devsimpleproxy.tfstate'
+  - name: varfile
+    value: 'dev-uksouthsampletfvars'
+
+stages:
+  - stage: tfvalidate
+    jobs:
+      - job: validate
+        continueOnError: 'false'
+        steps:
+          - task: TerraformInstaller@1
+            displayName: tfinstall
+            inputs:
+              terraformVersion: '1.4.6'
+          - task: TerraformTaskV4@4
+            displayName: init
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+              backendServiceArm: '$(servicearm)'
+              backendAzureRmResourceGroupName: '$(resource_group_name)'
+              backendAzureRmStorageAccountName: '$(accountstorage)'
+              backendAzureRmContainerName: '$(containerstorage)'
+              backendAzureRmKey: '$(keynamestorage)'
+          - task: TerraformTaskV4@4
+            displayName: validate
+            inputs:
+              provider: 'azurerm'
+              command: 'validate'
+  - stage: tfdeploy
+    condition: succeeded('tfvalidate')
+    dependsOn: tfvalidate
+    jobs:
+      - job: apply
+        steps: 
+          - task: TerraformInstaller@1
+            displayName: tfinstall
+            inputs:
+              terraformVersion: '1.4.6'
+          - task: TerraformTaskV4@4
+            displayName: init
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/modules/'
+              backendServiceArm: '$(servicearm)'
+              backendAzureRmResourceGroupName: '$(resource_group_name)'
+              backendAzureRmStorageAccountName: '$(accountstorage)'
+              backendAzureRmContainerName: '$(containerstorage)'
+              backendAzureRmKey: '$(keynamestorage)'
+# DB password for Kamailio
+          - task: DownloadSecureFile@1
+            name: 'dbpass'
+            displayName: 'Downloading PW for DB access'
+            inputs:
+              secureFile: 'dbpassword_test'
+# PW key for all VM's
+          - task: DownloadSecureFile@1
+            name: 'admin_password'
+            displayName: 'Downloading pub key for SSH access'
+            inputs:
+              secureFile: 'mm_dev_password' 
+          - script: |
+              catdbpass=$(cat $(dbpass.secureFilePath))
+              echo "##vso[task.setvariable variable=DBPASS;issecret=true]$catdbpass"
+              catvmp=$(cat $(admin_password.secureFilePath))
+              echo "##vso[task.setvariable variable=admin_password;issecret=true]$catvmp"
+# Base64 on the secure.file, but it is needed on anything multiline like the repo priv key ^^^
+            displayName: 'Setting vars and path'
+# tf plan for all 
+          - task: TerraformTaskV4@4
+            displayName: plan
+            inputs:
+              provider: 'azurerm'
+              command: 'plan'
+# Exporting all the vars here to be used in the template plan
+              commandOptions: '-input=false -var dbpass="$(DBPASS)" -var admin_password="$(ADMIN_PASSWORD)" -var-file="$(Build.SourcesDirectory)/modules/$(varfile)" '
+              environmentServiceNameAzureRM: '$(servicearm)'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/modules/'
+# Targets
+# Apply RG
+          - task: TerraformTaskV4@4
+            displayName: Apply Resource Group
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              commandOptions: '-input=false  -var-file="$(Build.SourcesDirectory)/modules/$(varfile)" -target=module.resource_group'
+              environmentServiceNameAzureRM: '$(servicearm)'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/modules/'
+# Apply Virtual Network
+          - task: TerraformTaskV4@4
+            displayName: Apply Virtual Network
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              commandOptions: '-input=false  -var-file="$(Build.SourcesDirectory)/modules/$(varfile)" -target=module.virtual_network'
+              environmentServiceNameAzureRM: '$(servicearm)'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/modules/'
+# Apply Subnet
+          - task: TerraformTaskV4@4
+            displayName: Apply Subnet
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              commandOptions: '-input=false  -var-file="$(Build.SourcesDirectory)/modules/$(varfile)" -target=module.subnet'
+              environmentServiceNameAzureRM: '$(servicearm)'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/modules/'
+# Apply Public IP
+          - task: TerraformTaskV4@4
+            displayName: Apply Public IP
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              commandOptions: '-input=false  -var-file="$(Build.SourcesDirectory)/modules/$(varfile)" -target=module.public_ip'
+              environmentServiceNameAzureRM: '$(servicearm)'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/modules/'
+# Apply Network Interface
+          - task: TerraformTaskV4@4
+            displayName: Apply Network Interface
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              commandOptions: '-input=false  -var-file="$(Build.SourcesDirectory)/modules/$(varfile)" -target=module.network_interface'
+              environmentServiceNameAzureRM: '$(servicearm)'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/modules/'
+# Apply VM
+          - task: TerraformTaskV4@4
+            displayName: Apply Linux VM
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              commandOptions: '-input=false -var dbpass="$(DBPASS)" -var admin_password="$(ADMIN_PASSWORD)" -var-file="$(Build.SourcesDirectory)/modules/$(varfile)" -target=module.linux_virtual_machine'
+              environmentServiceNameAzureRM: '$(servicearm)'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/modules/'
+# Apply NSG
+          - task: TerraformTaskV4@4
+            displayName: Apply NSG
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              commandOptions: '-input=false  -var-file="$(Build.SourcesDirectory)/modules/$(varfile)" -target=module.network_security_group'
+              environmentServiceNameAzureRM: '$(servicearm)'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/modules/'
+# Apply NSG rules
+          - task: TerraformTaskV4@4
+            displayName: Apply NSG Rules
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              commandOptions: '-input=false  -var-file="$(Build.SourcesDirectory)/modules/$(varfile)" -target=module.network_security_rule'
+              environmentServiceNameAzureRM: '$(servicearm)'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/modules/'
+# Apply Network Interface
+          - task: TerraformTaskV4@4
+            displayName: Apply Network Interface
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              commandOptions: '-input=false  -var-file="$(Build.SourcesDirectory)/modules/$(varfile)" -target=module.network_interface'
+              environmentServiceNameAzureRM: '$(servicearm)'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/modules/'
+# Apply Managed Disk
+          - task: TerraformTaskV4@4
+            displayName: Apply Managed Disk
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              commandOptions: '-input=false  -var-file="$(Build.SourcesDirectory)/modules/$(varfile)" -target=module.managed_disk'
+              environmentServiceNameAzureRM: '$(servicearm)'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/modules/'
+# Apply NIC NSG rule association 
+          - task: TerraformTaskV4@4
+            displayName: NSG rule association 
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              commandOptions: '-input=false  -var-file="$(Build.SourcesDirectory)/modules/$(varfile)" -target=module.network_interface_security_group_association'
+              environmentServiceNameAzureRM: '$(servicearm)'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/modules/'
+# Apply Data disk attachment
+          - task: TerraformTaskV4@4
+            displayName: Apply Data disk attachment
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              commandOptions: '-input=false  -var-file="$(Build.SourcesDirectory)/modules/$(varfile)" -target=module.virtual_machine_data_disk_attachment'
+              environmentServiceNameAzureRM: '$(servicearm)'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/modules/'
+# Apply VNET linking to shared services backend
+          - task: TerraformTaskV4@4
+            displayName: Apply VNET linking
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              commandOptions: '-input=false  -var-file="$(Build.SourcesDirectory)/modules/$(varfile)" -target=module.virtual_network_peering'
+              environmentServiceNameAzureRM: '$(servicearm)'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/modules/'
+# Apply VNET linking to Private DNS zone in shared services backend
+          - task: TerraformTaskV4@4
+            displayName: Apply VNET linking for Private DNS
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              commandOptions: '-input=false  -var-file="$(Build.SourcesDirectory)/modules/$(varfile)" -target=module.dns_zone_peering'
+              environmentServiceNameAzureRM: '$(servicearm)'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/modules/'
