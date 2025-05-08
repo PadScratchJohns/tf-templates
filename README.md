@@ -34,6 +34,6 @@ This code is provided as is and I will hold no responsibility for any issues tha
 Don't be that guy and just test the templates and code in DEV/Staging first before rolling out to PRD...
 
 # Authentication
-This is left intentionally blank, as are the pipelines missing to run these templates. This is because is AWS I would use BitBucket pipelines or AWS DevOps, Azure I would use ADO etc. 
+This is left intentionally blank, as are the pipelines missing to run these templates. This is because in AWS I would use BitBucket pipelines or AWS DevOps, Azure I would use ADO etc...
 
 Just be smart and use managed identitities here and not user accounts. 

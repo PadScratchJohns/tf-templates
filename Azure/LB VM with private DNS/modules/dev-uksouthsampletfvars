@@ -1,0 +1,961 @@
+#####
+# shared values
+#####
+# tags
+tags = {
+  "BusinessCritical" = "No"
+  "Environment"      = "dev"
+  "Service"          = "BackendSharedServices"
+  "CostCentre"       = "DevOps"
+}
+
+# loc
+location = "uksouth"
+# env
+environment = "dev"
+# RG name
+resource_group_name = "dev-backend-shared-services-rg"
+# Blob Storage stuff
+# backend (BK) RG for tfstate file storage: Silo3
+bk_resource_group_name = "mytfstatefiles_rg"
+# Storage account
+bk_accountstorage = "mytfstatefiles"
+# Container name
+bk_containerstorage = "mytfstatefiles"
+# tfstate file name
+bk_keynamestorage = "devsimpleproxy.tfstate"
+# Storage account in this 
+accountstorage = "devcarprobkups"
+# Container name
+containerstorage = "devcarprobkup"
+# tfstate file name - if using same RG blob for storage
+keynamestorage = "example.txt"
+
+# Subscription ID - find and replace all
+sub_id = "your-sub-id-here"
+# Tenant ID - overall tenant ID 
+ten_id = "your-tenant-id-here"
+# DEV vars
+saltmasterip = "192.168.252.201"
+# VNET
+virtual_network = {
+  name                    = "my-internal-vnet"
+  address_space           = ["192.168.252.0/24"]
+}
+# Subnet - 172.16 for shaser
+subnet = "internal"
+address_prefixes          = ["192.168.252.0/24"]
+service_endpoints         = ["Microsoft.Storage"]
+# VNET split
+vnet_split = "192.168.252"
+# linked VNET split - this is different to the rg's own subnet
+peered_vnet_split         = "192.168.252"
+virtual_network_name      = "my-internal-vnet"
+# VNET linking - to backend shared services DEV
+remote_virtual_network_id = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/virtualNetworks/my-internal-vnet"
+vnet_peering_name         = "dev-bss-dbnode-vnet-link" 
+dns_zone_peering = { # local vnet to its own zone is needed
+  "local_peering_to_remote" = { # from this RG to BSS vnet only is needed
+    name                      = "dev-backend-shared-services-dns-link"
+    resource_group_name       = "dev-backend-shared-services-rg"
+    private_dns_zone_name     = "example.tech"
+    virtual_network_id        = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/virtualNetworks/my-internal-vnet"
+  }
+}
+#####
+# Box specific variables]
+#####
+
+# Carrier Proxy VM
+# shaser DEV VM nsg name - watch out here as this name needs to be statically set in main.tf in root module. 
+network_security_group = {
+  "dev-bss-dbnode-nsg" = {
+    name = "dev-bss-dbnode-nsg"
+  }
+  "dev-bss-haproxy-nsg" = {
+    name = "dev-bss-haproxy-nsg"
+  }
+  "dev-bss-homer-nsg" = {
+    name = "dev-bss-homer-nsg"
+  }
+  "dev-bss-saltmaster-nsg" = {
+    name = "dev-bss-saltmaster-nsg"
+  }
+}
+# DEV shaser VM nsg rules - start from >1000 priority.
+dbnode_network_security_rule = {
+  "inbound-allow-ssh-my" = {
+    network_security_group_name          = "dev-bss-dbnode-nsg"
+    access                     = "Allow"
+    name                       = "My-SSH-rule"
+    description                = "SSH Rule for my IPs"
+    destination_address_prefix = "*"
+    destination_port_range     = "22"
+    direction                  = "Inbound"
+    priority                   = "1010"
+    protocol                   = "Tcp"
+    source_address_prefixes    = ["1.2.3.4","5.6.7.8"]
+    source_port_range          = "*"
+  }
+}
+haproxy_network_security_rule = {
+  "inbound-allow-ssh-my" = {
+    network_security_group_name          = "dev-bss-haproxy-nsg"
+    access                     = "Allow"
+    name                       = "My-SSH-rule"
+    description                = "SSH Rule for my IPs"
+    destination_address_prefix = "*"
+    destination_port_range     = "22"
+    direction                  = "Inbound"
+    priority                   = "1010"
+    protocol                   = "Tcp"
+    source_address_prefixes    = ["1.2.3.4","5.6.7.8"]
+    source_port_range          = "*"
+  }
+  "inbound-allow-postgress-my" = {
+    network_security_group_name          = "dev-bss-haproxy-nsg"
+    access                     = "Allow"
+    name                       = "my-Postgres-rule"
+    description                = "Postgres Rule for my IPs"
+    destination_address_prefix = "*"
+    destination_port_range     = "5432"
+    direction                  = "Inbound"
+    priority                   = "1020"
+    protocol                   = "Tcp"
+    source_address_prefixes    = ["1.2.3.4","5.6.7.8"]
+    source_port_range          = "*"
+  }
+  "inbound-allow-azure-healthcheck" = {
+    network_security_group_name          = "dev-bss-haproxy-nsg"
+    access                     = "Allow"
+    name                       = "Azure-LB-healthcheck-rule"
+    description                = "Azure LB healthcheck"
+    destination_address_prefix = "*"
+    destination_port_range     = "5000"
+    direction                  = "Inbound"
+    priority                   = "1030"
+    protocol                   = "Tcp"
+    source_address_prefixes    = ["168.63.129.16"] # Azure IP for healthchecks
+    source_port_range          = "*"
+  }
+}
+homer_network_security_rule = {
+  "inbound-allow-ssh-my" = {
+    network_security_group_name          = "dev-bss-homer-nsg"
+    access                     = "Allow"
+    name                       = "My-SSH-rule"
+    description                = "SSH Rule for my IPs"
+    destination_address_prefix = "*"
+    destination_port_range     = "22"
+    direction                  = "Inbound"
+    priority                   = "1010"
+    protocol                   = "Tcp"
+    source_address_prefixes    = ["1.2.3.4","5.6.7.8"]
+    source_port_range          = "*"
+  }
+  "inbound-allow-web-my" = {
+    network_security_group_name          = "dev-bss-homer-nsg"
+    access                     = "Allow"
+    name                       = "my-Web-rule"
+    description                = "Web Rule for my IPs"
+    destination_address_prefix = "*"
+    destination_port_range     = "443"
+    direction                  = "Inbound"
+    priority                   = "1020"
+    protocol                   = "Tcp"
+    source_address_prefixes    = ["1.2.3.4","5.6.7.8"]
+    source_port_range          = "*"
+  }
+}
+saltmaster_network_security_rule = {
+  "inbound-allow-ssh-my" = {
+    network_security_group_name          = "dev-bss-saltmaster-nsg"
+    access                     = "Allow"
+    name                       = "My-SSH-rule"
+    description                = "SSH Rule for my IPs"
+    destination_address_prefix = "*"
+    destination_port_range     = "22"
+    direction                  = "Inbound"
+    priority                   = "1010"
+    protocol                   = "Tcp"
+    source_address_prefixes    = ["1.2.3.4","5.6.7.8"]
+    source_port_range          = "*"
+  }
+}
+# DEV BSS IP settings.
+public_ip = {
+  "dbnode1" = { 
+    allocation_method = "Static"
+    sku               = "Standard"
+    sku_tier          = "Regional" # Default value
+    public_ip_name    = "dev-bss-dbnode-1-wan-ip"
+    domain_name_label = "dbnode1"
+    zones             = ["1"]
+  }
+  "dbnode2" = {
+    allocation_method = "Static"
+    sku               = "Standard"
+    sku_tier          = "Regional" # Default value
+    public_ip_name    = "dev-bss-dbnode-2-wan-ip"
+    domain_name_label = "dbnode2"
+    zones             = ["2"]
+  }
+  "dbnode3" = {
+    allocation_method = "Static"
+    sku               = "Standard"
+    sku_tier          = "Regional" # Default value
+    public_ip_name    = "dev-bss-dbnode-3-wan-ip"
+    domain_name_label = "dbnode3"
+    zones             = ["3"]
+  }
+  "haproxy1" = { 
+    allocation_method = "Static"
+    sku               = "Standard"
+    sku_tier          = "Regional" # Default value
+    public_ip_name    = "dev-bss-haproxy-1-wan-ip"
+    domain_name_label = "haproxy1"
+    zones             = ["1"]
+  }
+  "haproxy2" = {
+    allocation_method = "Static"
+    sku               = "Standard"
+    sku_tier          = "Regional" # Default value
+    public_ip_name    = "dev-bss-haproxy-2-wan-ip"
+    domain_name_label = "haproxy2"
+    zones             = ["2"]
+  }
+  "homer1" = {
+    allocation_method = "Static"
+    sku               = "Standard"
+    sku_tier          = "Regional" # Default value
+    public_ip_name    = "dev-bss-homer-1-wan-ip"
+    domain_name_label = "homer1"
+    zones             = ["1"]
+  }
+  "saltmaster1" = { 
+    allocation_method = "Static"
+    sku               = "Standard"
+    sku_tier          = "Regional" # Default value
+    public_ip_name    = "dev-bss-saltmaster-1-wan-ip"
+    domain_name_label = "saltmaster1"
+    zones             = ["1"]
+  }
+#  "uksouth-dev-Loadbalancer-1" = { # Likely not needed
+#    allocation_method = "Static"
+#    sku               = "Standard"
+#    sku_tier          = "Regional" # Default value
+#    public_ip_name    = "dev-bss-Loadbalancer-1-wan-ip"
+#    domain_name_label = "uksouth-dev-bss-Loadbalancer-1-1"
+#    zones             = ["1", "2", "3"]
+#  }
+}
+
+
+# DEV shaser VM's - 2 in DEV
+# Each machine type should have its own "block" here with ALL vars for easier use of the for loop without
+dbnode_linux_virtual_machine = {
+  "dev-bss-dbnode-1" = {
+# VM
+#    admin_ssh_key = {
+#      public_key = "***"
+#      username   = "mysupport"
+#    }
+    admin_username                  = "mysupport"
+    allow_extension_operations      = true # default value
+    computer_name                   = "uksouth-dev-dbnode-bss-1-1.example.com" # Hostname
+    disable_password_authentication = false
+    encryption_at_host_enabled      = true
+    name                            = "dev-bss-dbnode-1-vm" # VM name
+    size                            = "Standard_B2s"
+    zone                            = "1"
+    user_data                       = "../scripts/user_data/dbnode_userdata.sh"
+# identity and diags
+    identity = {
+      type = "SystemAssigned"
+    }
+#    boot_diagnostics = {
+#      storage_account_uri = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Storage/storageAccounts/storage1"
+#    }
+# Disk
+    os_disk = {
+      caching              = "ReadWrite"
+      diff_disk_settings   = {} # default value
+      disk_size_gb         = 30
+      name                 = "dev-bss-dbnode-1_OsDisk"
+      storage_account_type = "Standard_LRS" # DEV gets spinning rust 
+    }
+# OS ref
+    source_image_reference = {
+      offer     = "0001-com-ubuntu-server-jammy"
+      publisher = "Canonical"
+      sku       = "22_04-lts-gen2"
+      version   = "latest"
+    }
+# Network
+    ip_configuration = [{
+      name                          = "ipconfig1"
+      subnet_id                     = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/virtualNetworks/my-internal-vnet/subnets/internal"
+      private_ip_address_allocation = "Static"
+      private_ip_address            = "192.168.252.191"
+      private_ip_address_version    = "IPv4"
+      public_ip_address_id          = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/publicIPAddresses/dev-bss-dbnode-1-wan-ip"
+    }]
+    name_nic                        = "dev-bss-dbnode-1"
+    nic_name                        = "dev-bss-dbnode-1-nic"
+    internal_dns_name_label         = "dbnode1"
+    nsg_name                        = "dev-bss-dbnode-nsg"
+    nic_id                          = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/networkInterfaces/dev-bss-dbnode-1-nic"
+    nsg_id                          = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/networkSecurityGroups/dev-bss-dbnode-nsg"
+  }
+  "dev-bss-dbnode-2" = {
+# VM
+#    admin_ssh_key = {
+#      public_key = "***"
+#      username   = "mysupport"
+#    }
+    admin_username                  = "mysupport"
+    allow_extension_operations      = true # default value
+    computer_name                   = "uksouth-dev-dbnode-bss-2-2.example.com" # Hostname
+    disable_password_authentication = false
+    encryption_at_host_enabled      = true
+    name                            = "dev-bss-dbnode-2-vm" # VM name
+    size                            = "Standard_B2s" # box sizing
+    zone                            = "2"
+    user_data                       = "../scripts/user_data/dbnode_userdata.sh"
+# identity and diags
+    identity = {
+      type = "SystemAssigned"
+    }
+#    boot_diagnostics = {
+#      storage_account_uri = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Storage/storageAccounts/storage1"
+#    }
+# Disk
+    os_disk = {
+      caching              = "ReadWrite"
+      diff_disk_settings   = {} # default value
+      disk_size_gb         = 30
+      name                 = "dev-bss-dbnode-2_OsDisk"
+      storage_account_type = "Standard_LRS" # DEV gets spinning rust 
+    }  
+# OS ref
+    source_image_reference = {
+      offer     = "0001-com-ubuntu-server-jammy"
+      publisher = "Canonical"
+      sku       = "22_04-lts-gen2"
+      version   = "latest"
+    }
+# Networking
+    ip_configuration = [{
+      name                          = "ipconfig1"
+      subnet_id                     = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/virtualNetworks/my-internal-vnet/subnets/internal"
+      private_ip_address_allocation = "Static"
+      private_ip_address            = "192.168.252.192"
+      private_ip_address_version    = "IPv4"
+      public_ip_address_id          = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/publicIPAddresses/dev-bss-dbnode-2-wan-ip"
+    }]
+    name_nic                        = "dev-bss-dbnode-2"
+    nic_name                        = "dev-bss-dbnode-2-nic"
+    internal_dns_name_label         = "dbnode2"
+    nsg_name                        = "dev-bss-dbnode-nsg"
+    nic_id                          = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/networkInterfaces/dev-bss-dbnode-2-nic"
+    nsg_id                          = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/networkSecurityGroups/dev-bss-dbnode-nsg"
+  }
+  "dev-bss-dbnode-3" = {
+# VM
+#    admin_ssh_key = {
+#      public_key = "***"
+#      username   = "mysupport"
+#    }
+    admin_username                  = "mysupport"
+    allow_extension_operations      = true # default value
+    computer_name                   = "uksouth-dev-dbnode-bss-3-3.example.com" # Hostname
+    disable_password_authentication = false
+    encryption_at_host_enabled      = true
+    name                            = "dev-bss-dbnode-3-vm" # VM name
+    size                            = "Standard_B2s" # box sizing
+    zone                            = "3"
+    user_data                       = "../scripts/user_data/dbnode_userdata.sh"
+# identity and diags
+    identity = {
+      type = "SystemAssigned"
+    }
+#    boot_diagnostics = {
+#      storage_account_uri = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Storage/storageAccounts/storage1"
+#    }
+# Disk
+    os_disk = {
+      caching              = "ReadWrite"
+      diff_disk_settings   = {} # default value
+      disk_size_gb         = 30
+      name                 = "dev-bss-dbnode-3_OsDisk"
+      storage_account_type = "Standard_LRS" # DEV gets spinning rust 
+    }  
+# OS ref
+    source_image_reference = {
+      offer     = "0001-com-ubuntu-server-jammy"
+      publisher = "Canonical"
+      sku       = "22_04-lts-gen2"
+      version   = "latest"
+    }
+# Networking
+    ip_configuration = [{
+      name                          = "ipconfig1"
+      subnet_id                     = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/virtualNetworks/my-internal-vnet/subnets/internal"
+      private_ip_address_allocation = "Static"
+      private_ip_address            = "192.168.252.193"
+      private_ip_address_version    = "IPv4"
+      public_ip_address_id          = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/publicIPAddresses/dev-bss-dbnode-3-wan-ip"
+    }]
+    name_nic                        = "dev-bss-dbnode-3"
+    nic_name                        = "dev-bss-dbnode-3-nic"
+    internal_dns_name_label         = "dbnode3"
+    nsg_name                        = "dev-bss-dbnode-nsg"
+    nic_id                          = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/networkInterfaces/dev-bss-dbnode-3-nic"
+    nsg_id                          = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/networkSecurityGroups/dev-bss-dbnode-nsg"
+  }
+}
+
+haproxy_linux_virtual_machine = {
+  "dev-bss-haproxy-1" = {
+# VM
+#    admin_ssh_key = {
+#      public_key = "***"
+#      username   = "mysupport"
+#    }
+    admin_username                  = "mysupport"
+    allow_extension_operations      = true # default value
+    computer_name                   = "uksouth-dev-haproxy-bss-1-1.example.com" # Hostname
+    disable_password_authentication = false
+    encryption_at_host_enabled      = true
+    name                            = "dev-bss-haproxy-1-vm" # VM name
+    size                            = "Standard_B1ms"
+    zone                            = "1"
+    user_data                       = "../scripts/user_data/haproxy_userdata.sh"
+# identity and diags
+    identity = {
+      type = "SystemAssigned"
+    }
+#    boot_diagnostics = {
+#      storage_account_uri = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Storage/storageAccounts/storage1"
+#    }
+# Disk
+    os_disk = {
+      caching              = "ReadWrite"
+      diff_disk_settings   = {} # default value
+      disk_size_gb         = 30
+      name                 = "dev-bss-haproxy-1_OsDisk"
+      storage_account_type = "Standard_LRS" # DEV gets spinning rust 
+    }
+# OS ref
+    source_image_reference = {
+      offer     = "0001-com-ubuntu-server-jammy"
+      publisher = "Canonical"
+      sku       = "22_04-lts-gen2"
+      version   = "latest"
+    }
+# Network
+    ip_configuration = [{
+      name                          = "ipconfig1"
+      subnet_id                     = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/virtualNetworks/my-internal-vnet/subnets/internal"
+      private_ip_address_allocation = "Static"
+      private_ip_address            = "192.168.252.211"
+      private_ip_address_version    = "IPv4"
+      public_ip_address_id          = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/publicIPAddresses/dev-bss-haproxy-1-wan-ip"
+    }]
+    name_nic                        = "dev-bss-haproxy-1"
+    nic_name                        = "dev-bss-haproxy-1-nic"
+    internal_dns_name_label         = "haproxy1"
+    nsg_name                        = "dev-bss-haproxy-nsg"
+    nic_id                          = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/networkInterfaces/dev-bss-haproxy-1-nic"
+    nsg_id                          = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/networkSecurityGroups/dev-bss-haproxy-nsg"
+    backend_address_pool_id         = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/loadBalancers/dev-uksouth-bss-internal-lb/backendAddressPools/dev-uksouth-bss-internal-lb-backendpool-01"
+    ip_configuration_name           = "ipconfig1"
+  }
+  "dev-bss-haproxy-2" = {
+# VM
+#    admin_ssh_key = {
+#      public_key = "***"
+#      username   = "mysupport"
+#    }
+    admin_username                  = "mysupport"
+    allow_extension_operations      = true # default value
+    computer_name                   = "uksouth-dev-haproxy-bss-2-2.example.com" # Hostname
+    disable_password_authentication = false
+    encryption_at_host_enabled      = true
+    name                            = "dev-bss-haproxy-2-vm" # VM name
+    size                            = "Standard_B1ms" # box sizing
+    zone                            = "2"
+    user_data                       = "../scripts/user_data/haproxy_userdata.sh"
+# identity and diags
+    identity = {
+      type = "SystemAssigned"
+    }
+#    boot_diagnostics = {
+#      storage_account_uri = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Storage/storageAccounts/storage1"
+#    }
+# Disk
+    os_disk = {
+      caching              = "ReadWrite"
+      diff_disk_settings   = {} # default value
+      disk_size_gb         = 30
+      name                 = "dev-bss-haproxy-2_OsDisk"
+      storage_account_type = "Standard_LRS" # DEV gets spinning rust 
+    }  
+# OS ref
+    source_image_reference = {
+      offer     = "0001-com-ubuntu-server-jammy"
+      publisher = "Canonical"
+      sku       = "22_04-lts-gen2"
+      version   = "latest"
+    }
+# Networking
+    ip_configuration = [{
+      name                          = "ipconfig1"
+      subnet_id                     = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/virtualNetworks/my-internal-vnet/subnets/internal"
+      private_ip_address_allocation = "Static"
+      private_ip_address            = "192.168.252.212"
+      private_ip_address_version    = "IPv4"
+      public_ip_address_id          = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/publicIPAddresses/dev-bss-haproxy-2-wan-ip"
+    }]
+    name_nic                        = "dev-bss-haproxy-2"
+    nic_name                        = "dev-bss-haproxy-2-nic"
+    internal_dns_name_label         = "haproxy2"
+    nsg_name                        = "dev-bss-haproxy-nsg"
+    nic_id                          = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/networkInterfaces/dev-bss-haproxy-2-nic"
+    nsg_id                          = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/networkSecurityGroups/dev-bss-haproxy-nsg"
+    backend_address_pool_id         = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/loadBalancers/dev-uksouth-bss-internal-lb/backendAddressPools/dev-uksouth-bss-internal-lb-backendpool-01"
+    ip_configuration_name           = "ipconfig1"
+  }
+}
+homer_linux_virtual_machine = {
+  "dev-bss-homer-1" = {
+# VM
+#    admin_ssh_key = {
+#      public_key = "***"
+#      username   = "mysupport"
+#    }
+    admin_username                  = "mysupport"
+    allow_extension_operations      = true # default value
+    computer_name                   = "uksouth-dev-homer-bss-1-1.example.com" # Hostname
+    disable_password_authentication = false
+    encryption_at_host_enabled      = true
+    name                            = "dev-bss-homer-1-vm" # VM name
+    size                            = "Standard_B2s"
+    zone                            = "1"
+    user_data                       = "../scripts/user_data/homer_userdata.sh"
+# identity and diags
+    identity = {
+      type = "SystemAssigned"
+    }
+#    boot_diagnostics = {
+#      storage_account_uri = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Storage/storageAccounts/storage1"
+#    }
+# Disk
+    os_disk = {
+      caching              = "ReadWrite"
+      diff_disk_settings   = {} # default value
+      disk_size_gb         = 30
+      name                 = "dev-bss-homer-1_OsDisk"
+      storage_account_type = "Standard_LRS" # DEV gets spinning rust 
+    }
+# OS ref
+    source_image_reference = {
+      offer     = "0001-com-ubuntu-server-jammy"
+      publisher = "Canonical"
+      sku       = "22_04-lts-gen2"
+      version   = "latest"
+    }
+# Network
+    ip_configuration = [{
+      name                          = "ipconfig1"
+      subnet_id                     = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/virtualNetworks/my-internal-vnet/subnets/internal"
+      private_ip_address_allocation = "Static"
+      private_ip_address            = "192.168.252.200"
+      private_ip_address_version    = "IPv4"
+      public_ip_address_id          = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/publicIPAddresses/dev-bss-homer-1-wan-ip"
+    }]
+    name_nic                        = "dev-bss-homer-1"
+    nic_name                        = "dev-bss-homer-1-nic"
+    internal_dns_name_label         = "homer1"
+    nsg_name                        = "dev-bss-homer-nsg"
+    nic_id                          = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/networkInterfaces/dev-bss-homer-1-nic"
+    nsg_id                          = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/networkSecurityGroups/dev-bss-homer-nsg"
+  }
+}
+saltmaster_linux_virtual_machine = {
+  "dev-bss-saltmaster-1" = {
+# VM
+#    admin_ssh_key = {
+#      public_key = "***"
+#      username   = "mysupport"
+#    }
+    admin_username                  = "mysupport"
+    allow_extension_operations      = true # default value
+    computer_name                   = "uksouth-dev-saltmaster-bss-1-1.example.com" # Hostname
+    disable_password_authentication = false
+    encryption_at_host_enabled      = true
+    name                            = "dev-bss-saltmaster-1-vm" # VM name
+    size                            = "Standard_B2s"
+    zone                            = "1"
+    user_data                       = "../scripts/user_data/saltmaster_userdata.sh"
+# identity and diags
+    identity = {
+      type = "SystemAssigned"
+    }
+#    boot_diagnostics = {
+#      storage_account_uri = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Storage/storageAccounts/storage1"
+#    }
+# Disk
+    os_disk = {
+      caching              = "ReadWrite"
+      diff_disk_settings   = {} # default value
+      disk_size_gb         = 30
+      name                 = "dev-bss-saltmaster-1_OsDisk"
+      storage_account_type = "Standard_LRS" # DEV gets spinning rust 
+    }
+# OS ref
+    source_image_reference = {
+      offer     = "0001-com-ubuntu-server-jammy"
+      publisher = "Canonical"
+      sku       = "22_04-lts-gen2"
+      version   = "latest"
+    }
+# Network
+    ip_configuration = [{
+      name                          = "ipconfig1"
+      subnet_id                     = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/virtualNetworks/my-internal-vnet/subnets/internal"
+      private_ip_address_allocation = "Static"
+      private_ip_address            = "192.168.252.201"
+      private_ip_address_version    = "IPv4"
+      public_ip_address_id          = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/publicIPAddresses/dev-bss-saltmaster-1-wan-ip"
+    }]
+    name_nic                        = "dev-bss-saltmaster-1"
+    nic_name                        = "dev-bss-saltmaster-1-nic"
+    internal_dns_name_label         = "saltmaster1"
+    nsg_name                        = "dev-bss-saltmaster-nsg"
+    nic_id                          = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/networkInterfaces/dev-bss-saltmaster-1-nic"
+    nsg_id                          = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/networkSecurityGroups/dev-bss-saltmaster-nsg"
+  }
+}
+# Data disks attachments here - DEV gets 8GB
+dbnode_managed_data_disk = {
+  "dev-bss-dbnode-1-dd" = {
+    disk_name                     = "dev-bss-dbnode-1_datadisk01"
+    storage_account_type          = "Standard_LRS"
+    create_option                 = "Empty"
+    disk_size_gb                  = 16
+    zone                          = "1"
+    on_demand_bursting_enabled    = false
+    public_network_access_enabled = false
+    trusted_launch_enabled        = false
+    upload_size_bytes             = 0
+  }
+  "dev-bss-dbnode-2-dd" = {
+    disk_name                     = "dev-bss-dbnode-2_datadisk01"
+    storage_account_type          = "Standard_LRS"
+    create_option                 = "Empty"
+    disk_size_gb                  = 16
+    zone                          = "2"
+    on_demand_bursting_enabled    = false
+    public_network_access_enabled = false
+    trusted_launch_enabled        = false
+    upload_size_bytes             = 0
+  }
+  "dev-bss-dbnode-3-dd" = {
+    disk_name                     = "dev-bss-dbnode-3_datadisk01"
+    storage_account_type          = "Standard_LRS"
+    create_option                 = "Empty"
+    disk_size_gb                  = 16
+    zone                          = "3"
+    on_demand_bursting_enabled    = false
+    public_network_access_enabled = false
+    trusted_launch_enabled        = false
+    upload_size_bytes             = 0
+  }
+}
+haproxy_managed_data_disk = {
+  "dev-bss-haproxy-1-dd" = {
+    disk_name                     = "dev-bss-haproxy-1_datadisk01"
+    storage_account_type          = "Standard_LRS"
+    create_option                 = "Empty"
+    disk_size_gb                  = 16
+    zone                          = "1"
+    on_demand_bursting_enabled    = false
+    public_network_access_enabled = false
+    trusted_launch_enabled        = false
+    upload_size_bytes             = 0
+  }
+  "dev-bss-haproxy-2-dd" = {
+    disk_name                     = "dev-bss-haproxy-2_datadisk01"
+    storage_account_type          = "Standard_LRS"
+    create_option                 = "Empty"
+    disk_size_gb                  = 16
+    zone                          = "2"
+    on_demand_bursting_enabled    = false
+    public_network_access_enabled = false
+    trusted_launch_enabled        = false
+    upload_size_bytes             = 0
+  }
+}
+
+homer_managed_data_disk = {
+  "dev-bss-homer-1-dd" = {
+    disk_name                     = "dev-bss-homer-1_datadisk01"
+    storage_account_type          = "Standard_LRS"
+    create_option                 = "Empty"
+    disk_size_gb                  = 16
+    zone                          = "1"
+    on_demand_bursting_enabled    = false
+    public_network_access_enabled = false
+    trusted_launch_enabled        = false
+    upload_size_bytes             = 0
+  }
+}
+
+# managed_data_disks_attachments
+dbnode_managed_data_disks_attachment = {
+  "dev-bss-dbnode-1-dd" = {
+    virtual_machine_id        = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Compute/virtualMachines/dev-bss-dbnode-1-vm"
+    managed_disk_id           = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Compute/disks/dev-bss-dbnode-1_datadisk01"
+    lun                       = 1
+    caching                   = "None"
+    create_option             = "Attach"
+    write_accelerator_enabled = false
+  }
+  "dev-bss-dbnode-2-dd" = {
+    virtual_machine_id        = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Compute/virtualMachines/dev-bss-dbnode-2-vm"
+    managed_disk_id           = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Compute/disks/dev-bss-dbnode-2_datadisk01"
+    lun                       = 1
+    caching                   = "None"
+    create_option             = "Attach"
+    write_accelerator_enabled = false
+  }
+  "dev-bss-dbnode-3-dd" = {
+    virtual_machine_id        = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Compute/virtualMachines/dev-bss-dbnode-3-vm"
+    managed_disk_id           = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Compute/disks/dev-bss-dbnode-3_datadisk01"
+    lun                       = 1
+    caching                   = "None"
+    create_option             = "Attach"
+    write_accelerator_enabled = false
+  }
+}
+haproxy_managed_data_disks_attachment = {
+  "dev-bss-haproxy-1-dd" = {
+    virtual_machine_id        = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Compute/virtualMachines/dev-bss-haproxy-1-vm"
+    managed_disk_id           = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Compute/disks/dev-bss-haproxy-1_datadisk01"
+    lun                       = 1
+    caching                   = "None"
+    create_option             = "Attach"
+    write_accelerator_enabled = false
+  }
+  "dev-bss-haproxy-2-dd" = {
+    virtual_machine_id        = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Compute/virtualMachines/dev-bss-haproxy-2-vm"
+    managed_disk_id           = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Compute/disks/dev-bss-haproxy-2_datadisk01"
+    lun                       = 1
+    caching                   = "None"
+    create_option             = "Attach"
+    write_accelerator_enabled = false
+  }
+}
+homer_managed_data_disks_attachment = {
+  "dev-bss-homer-1-dd" = {
+    virtual_machine_id        = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Compute/virtualMachines/dev-bss-homer-1-vm"
+    managed_disk_id           = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Compute/disks/dev-bss-homer-1_datadisk01"
+    lun                       = 1
+    caching                   = "None"
+    create_option             = "Attach"
+    write_accelerator_enabled = false
+  }
+}
+# Availability set - if needed for ukw etc
+# management_availability_set
+management_availability_set = {
+  name                        = "dev-ukw-bss-av"
+  platform_fault_domain_count = 2
+}
+
+# accountstorage 
+storage_account = {
+  "blob_storage_account" = {
+    name                             = "storage1" 
+    access_tier                      = "Cool"
+    min_tls_version                  = "TLS1_2"
+    default_to_oauth_authentication  = null
+    allow_nested_items_to_be_public  = false
+    shared_access_key_enabled        = false
+    public_network_access_enabled    = false
+    cross_tenant_replication_enabled = false
+    blob_properties = {
+      delete_retention_policy = {
+        days = 30
+      }
+    }
+  }
+}
+# containers
+storage_container = {
+  "dbnode_backups_container" = { # again for the logs and backups
+    container_name        = "dbnodebackups"
+    storage_account_name  = "storage1"
+    #storage_account_id    = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Storage/storageAccounts/storage1"
+    container_access_type = "private"
+  }
+}
+# Network rules - VPN and office IP's
+storage_network_rules = {
+  "blob_storage_account" = {
+    storage_account_id = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Storage/storageAccounts/storage1"
+    storage_account_name = "storage1"
+    default_action = "Deny"
+    bypass         = ["AzureServices"]
+    ip_rules       = ["1.2.3.4","5.6.7.8"]
+    virtual_network_subnet_ids = [
+      "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/virtualNetworks/my-internal-vnet/subnets/internal"
+    ]
+    private_link_access = [{
+      endpoint_resource_id = "/subscriptions/your-sub-id-here/providers/Microsoft.Security/datascanners/StorageDataScanner"
+      endpoint_tenant_id   = "your-tenant-id-here"
+    }]
+  }
+}
+# DNS
+private_dns_zone = {
+  name = "example.tech"
+  soa_record = {
+    email        = "operation-example.com"
+    expire_time  = 2419200
+    minimum_ttl  = 10
+    refresh_time = 3600
+    retry_time   = 300
+    ttl          = 3600
+    tags         = null
+  }
+}
+private_dns_a_record = {
+  "bss_private" = {
+    name = "dev-telephony-shared-services"
+    zone_name = "example.tech"
+    ttl = 3600
+    records = ["192.168.252.251"] # Loadbalancer IP internal - the public fqdn points at the 2 HA Proxy nodes on the public IP's
+  }
+  "homer_private" = {
+    name = "dev-bss-homer-shared-services"
+    zone_name = "example.tech"
+    ttl = 3600
+    records = ["192.168.252.200"] # The public FQDN is locked to 443 - across the vnet 9060 is open so using DNS here. 
+  }
+  "saltmaster_private" = {
+    name = "dev-bss-saltmaster-shared-services"
+    zone_name = "example.tech"
+    ttl = 3600
+    records = ["192.168.252.201"] 
+  }
+  "core_dmq_uksouth" = { # Core for sharing dialog state
+    name = "uksouth-dev-dmq-core"
+    zone_name = "example.tech"
+    ttl = 3600
+    records = ["172.19.252.11","172.19.252.12"] 
+  }
+  "registrar_dmq_uksouth" = { # Registrar for sharing dialog state
+    name = "uksouth-dev-dmq-registrar"
+    zone_name = "example.tech"
+    ttl = 3600
+    records = ["172.19.252.21","172.19.252.22"] 
+  }
+  "ssr_dmq_uksouth" = { # SSR for sharing dialog state
+    name = "uksouth-dev-dmq-ssr"
+    zone_name = "example.tech"
+    ttl = 3600
+    records = ["172.16.250.21","172.16.250.22"] 
+  }
+  "test_address" = {
+    name = "test-private-address"
+    zone_name = "example.tech"
+    ttl = 3600
+    records = ["10.10.10.10"] # The public FQDN is not created so this will fail from outside of the VNET linked subnets
+  }
+}
+
+# Loadbalancer LB 
+# internal_load_balancer only here
+load_balancer = {
+  "internal_lb" = {
+    name = "dev-uksouth-bss-internal-lb"
+    frontend_ip_configuration = {
+      name                          = "LoadBalancerFrontEnd"
+      subnet_id                     = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/virtualNetworks/my-internal-vnet/subnets/internal"
+      private_ip_address            = "192.168.252.251"
+      private_ip_address_allocation = "Static"
+      private_ip_address_version    = "IPv4"
+    }
+    sku      = "Standard"
+    sku_tier = "Regional"
+  }
+}
+# internal_load_balancer_backend_address_pool
+load_balancer_backend_address_pool = {
+  "internal_lb" = {
+    name               = "dev-uksouth-bss-internal-lb-backendpool-01"
+    load_balancer_id   = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/loadBalancers/dev-uksouth-bss-internal-lb"
+    #virtual_network_id = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/virtualNetworks/my-internal-vnet"
+  }
+}
+# internal_load_balancer_backend_address_pool_addresses
+load_balancer_backend_address_pool_association = { # Moved to the haproxy linux virtual machine for ease and re-use of the variables. 
+  "dev-uksouth-haproxy-1" = {
+    network_interface_id    = "test"
+    ip_configuration_name   = "ipconfig1"
+    backend_address_pool_id = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/loadBalancers/dev-uksouth-bss-internal-lb/backendAddressPools/dev-uksouth-bss-internal-lb-backendpool-01"
+  }
+  "dev-uksouth-haproxy-2" = {
+    network_interface_id    = "test"
+    ip_configuration_name   = "ipconfig1"
+    backend_address_pool_id = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/loadBalancers/dev-uksouth-bss-internal-lb/backendAddressPools/dev-uksouth-bss-internal-lb-backendpool-01"
+  }
+}
+
+# internal_load_balancer_probes
+load_balancer_probe = {
+  "dev-uksouth-bss-internal-lb_healthprobe01" = {
+    name                = "dev-uksouth-bss-internal-lb_hp01"
+    load_balancer_id    = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/loadBalancers/dev-uksouth-bss-internal-lb"
+    protocol            = "Tcp"
+    port                = 5000
+    probe_threshold     = 1
+    interval_in_seconds = 5
+    number_of_probes    = 2
+  }
+}
+
+# internal_load_balancer_rules
+load_balancer_rule = {
+  "dev-uksouth-bss-internal-lb_rule01" = { # Postgres port for writing to DB
+    name                    = "dev-uksouth-bss-internal-lb_write-rule01"
+    load_balancer_id        = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/loadBalancers/dev-uksouth-bss-internal-lb"
+    protocol                = "Tcp"
+    frontend_port           = 5432
+    backend_port            = 5432
+    probe_id                = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/loadBalancers/dev-uksouth-bss-internal-lb/probes/dev-uksouth-bss-internal-lb_hp01"
+    enable_floating_ip      = true
+    idle_timeout_in_minutes = 30
+    load_distribution       = "SourceIPProtocol" # Client IP and Protocol routing for session Persistence.
+    disable_outbound_snat   = false
+    enable_tcp_reset        = false
+    frontend_ip_configuration_name = "LoadBalancerFrontEnd"
+    backend_address_pool_id        = ["/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/loadBalancers/dev-uksouth-bss-internal-lb/backendAddressPools/dev-uksouth-bss-internal-lb-backendpool-01"]
+  }
+#  "dev-uksouth-bss-internal-lb_rule02" = {
+#    name                    = "dev-uksouth-bss-internal-lb_read-rule02"
+#    protocol                = "Tcp"
+#    frontend_port           = 5000
+#    backend_port            = 5000
+#    probe_id                = "/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/loadBalancers/dev-uksouth-bss-internal-lb/probes/dev-uksouth-bss-internal-lb_hp01"
+#    enable_floating_ip      = true
+#    idle_timeout_in_minutes = 30
+#    load_distribution       = "SourceIPProtocol"
+#    disable_outbound_snat   = false
+#    enable_tcp_reset        = false
+#    frontend_ip_configuration_name = "LoadBalancerFrontEnd"
+#    backend_address_pool_id        = ["/subscriptions/your-sub-id-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/loadBalancers/dev-uksouth-bss-internal-lb/backendAddressPools/dev-uksouth-bss-internal-lb-backendpool-01"]
+#  }
+}

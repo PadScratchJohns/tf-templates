@@ -6,14 +6,13 @@ tags = {
   "BusinessCritical" = "No"
   "Environment"      = "dev"
   "Service"          = "SimpleProxy"
-  "Customer"         = "DevOps"
+  "Customer"         = "MyCust"
 }
 
 # loc
 location = "uksouth"
 # env
 environment = "dev"
-
 # RG name
 resource_group_name = "dev-uks-simple-proxy_rg"
 # Blob Storage stuff
@@ -44,7 +43,7 @@ virtual_network = {
   name                    = "uks-dev-simpro-vnet"
   address_space           = ["192.168.253.0/24"]
 }
-# Subnet - 172.17 for simpro
+# Subnet
 subnet                    = "internal"
 address_prefixes          = ["192.168.253.0/24"]
 service_endpoints         = ["Microsoft.Storage"]
@@ -89,11 +88,11 @@ network_security_group = {
 }
 # DEV simpro VM nsg rules - start from >1000 priority.
 network_security_rule = {
-  "inbound-allow-ssh-max" = {
+  "inbound-allow-ssh-my" = {
     network_security_group_name          = "dev-simpro-nsg"
     access                     = "Allow"
-    name                       = "MaxC-VPN-SSH-rule"
-    description                = "SSH Rule for MaxC VPN IPs"
+    name                       = "my-VPN-SSH-rule"
+    description                = "SSH Rule for my VPN IPs"
     destination_address_prefix = "*"
     destination_port_range     = "22"
     direction                  = "Inbound"
@@ -128,11 +127,11 @@ network_security_rule = {
     source_address_prefixes    = ["1.1.1.1","2.2.2.2"]
     source_port_range          = "*"
   }
-  "Nexbridge-ICMP-allow" = {
+  "inbound-ICMP-allow" = {
     network_security_group_name          = "dev-simpro-nsg"
     access                     = "Allow"
-    name                       = "Allow-ICMP-from-Nexbridge-rule"
-    description                = "ICMP Nexbridge allow"
+    name                       = "Allow-ICMP-from-inbound-rule"
+    description                = "ICMP inbound allow"
     destination_address_prefix = "*"
     destination_port_range     = "*"
     direction                  = "Inbound"
