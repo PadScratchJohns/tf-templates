@@ -1,0 +1,505 @@
+#####
+# shared values
+#####
+# tags
+tags = {
+  "BusinessCritical" = "No"
+  "Environment"      = "dev"
+  "Service"          = "MySIPServerRegistrar"
+  "CostCentre"       = "DevOps"
+}
+
+# loc
+location = "uksouth"
+# env
+environment = "dev"
+# RG name
+resource_group_name = "mysip-server-registrar_rg"
+# Blob Storage stuff
+# backend (BK) RG for tfstate file storage: Silo3
+bk_resource_group_name = "mytfstatefiles_rg"
+# Storage account
+bk_accountstorage = "mytfstatefiles"
+# Container name
+bk_containerstorage = "mytfstatefiles"
+# tfstate file name
+bk_keynamestorage = "ssr-infrasturcture.tfstate"
+# Storage account in this 
+accountstorage = "devssrdbbk"
+# Container name
+containerstorage = "devssrbk"
+# tfstate file name - if using same RG blob for storage
+keynamestorage = "example.txt"
+
+containername = "logsandbackups"
+accountname = "storagessr1"
+#dbpass = "supersecret" # passed from pipeline
+# Subscription ID 
+sub_id = "your-subid-here"
+# Tenant ID - overall tenant
+ten_id = "your-tenant-id-here"
+# DEV vars
+saltmasterip = "192.168.250.201"
+# VNET 
+virtual_network = {
+  name                    = "my-ssr-vnet"
+  address_space           = ["192.168.250.0/24"]
+}
+# Subnet 
+subnet = "internal"
+address_prefixes          = ["192.168.250.0/24"]
+service_endpoints         = ["Microsoft.Storage"]
+# VNET split
+vnet_split = "192.168.250"
+# linked VNET split - this is different to the rg's own subnet
+peered_vnet_split         = "192.168.250"
+virtual_network_name      = "my-ssr-vnet"
+# VNET linking - to backend shared services DEV
+virtual_network_peering = {
+  "local_peer" = { # from this RG to BSS vnet
+    vnet_peering_name         = "dev-ssr-vnet-link"
+    resource_group_name       = "mysip-server-registrar_rg"
+    virtual_network_name      = "my-ssr-vnet"
+    remote_virtual_network_id = "/subscriptions/your-subid-here/resourceGroups/dev-backend-shared-services-rg/providers/Microsoft.Network/virtualNetworks/my-internal-vnet"
+  }
+  "remote_peer" = { # from BSS vnet to this RG vnet
+    vnet_peering_name         = "dev-ssr-vnet-link"
+    resource_group_name       = "dev-backend-shared-services-rg"
+    virtual_network_name      = "my-internal-vnet"
+    remote_virtual_network_id = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/virtualNetworks/my-ssr-vnet"
+  }
+}
+dns_zone_peering = { 
+  "local_peering_to_remote" = { # from this RG to BSS RG - only rg name for remote, only vnet ID for the local. 
+    name                      = "dev-ssr-dns-link"
+    resource_group_name       = "dev-backend-shared-services-rg"
+    private_dns_zone_name     = "example.tech"
+    virtual_network_id        = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/virtualNetworks/my-ssr-vnet"
+  }
+}
+#####
+# Box specific variables
+#####
+
+# ssr DEV VM nsg name - watch out here as this name needs to be statically set in main.tf in root module. 
+network_security_group = {
+  "dev-ssr-registrar-nsg" = {
+    name = "dev-ssr-registrar-nsg"
+  }
+}
+# DEV ssr VM nsg rules - start from >1000 priority.
+registrar_network_security_rule = {
+  "inbound-allow-ssh-my" = {
+    network_security_group_name          = "dev-ssr-registrar-nsg"
+    access                     = "Allow"
+    name                       = "my-VPN-SSH-rule"
+    description                = "SSH Rule for myC VPN IPs"
+    destination_address_prefix = "*"
+    destination_port_range     = "22"
+    direction                  = "Inbound"
+    priority                   = "1010"
+    protocol                   = "Tcp"
+    source_address_prefixes    = ["1.2.3.4", "5.6.7.8"]
+    source_port_range          = "*"
+  }
+#  "inbound-allow-5060-my-systems" = { # 5060 is over the private vnet link so this rule is not needed - commented for now
+#    network_security_group_name          = "dev-ssr-registrar-nsg"
+#    access                     = "Allow"
+#    name                       = "Allow-5060-my-systems"
+#    description                = "Allow 5060 rule my list"
+#    destination_address_prefix = "*"
+#    destination_port_range     = "5060"
+#    direction                  = "Inbound"
+#    priority                   = "1020"
+#    protocol                   = "Udp"
+#    source_address_prefixes    = ["1.2.3.4", "5.6.7.8"]
+#    source_port_range          = "*"
+#  }
+  "inbound-allow-5080-customers" = {
+    network_security_group_name          = "dev-ssr-registrar-nsg"
+    access                     = "Allow"
+    name                       = "Allow-5080-SIP-traffic"
+    description                = "Allow-5080-rule-customer-list"
+    destination_address_prefix = "*"
+    destination_port_range     = "5080"
+    direction                  = "Inbound"
+    priority                   = "1030"
+    protocol                   = "Udp"
+    source_address_prefixes    = ["1.2.3.4", "5.6.7.8"]
+    source_port_range          = "*"
+  }
+  "inbound-allow-azure-healthcheck" = {
+    network_security_group_name          = "dev-ssr-registrar-nsg"
+    access                     = "Allow"
+    name                       = "Azure-LB-healthcheck-rule"
+    description                = "Azure LB healthcheck"
+    destination_address_prefix = "*"
+    destination_port_range     = "5000"
+    direction                  = "Inbound"
+    priority                   = "1040"
+    protocol                   = "Tcp"
+    source_address_prefixes    = ["168.63.129.16"]
+    source_port_range          = "*"
+  }
+}
+
+# DEV SSr IP settings.
+public_ip = {
+  "ssr001" = { 
+    allocation_method = "Static"
+    sku               = "Standard"
+    sku_tier          = "Regional" # Default value
+    public_ip_name    = "dev-ssr-registrar-1-wan-ip"
+    domain_name_label = "ssr001"
+    zones             = ["1"]
+  }
+  "ssr002" = {
+    allocation_method = "Static"
+    sku               = "Standard"
+    sku_tier          = "Regional" # Default value
+    public_ip_name    = "dev-ssr-registrar-2-wan-ip"
+    domain_name_label = "ssr002"
+    zones             = ["2"]
+  }
+  "uksouth-dev-Loadbalancer-1" = { # LB External
+    allocation_method = "Static"
+    sku               = "Standard"
+    sku_tier          = "Regional" # Default value
+    public_ip_name    = "dev-ssr-Loadbalancer-1-wan-ip"
+    domain_name_label = "lbip001"
+    zones             = ["1", "2", "3"]
+  }
+}
+# DEV ssr VM's - 2 in DEV
+registrar_linux_virtual_machine = {
+  "dev-ssr-registrar-1" = {
+# VM
+#    admin_ssh_key = {
+#      public_key = "***"
+#      username   = "mysupport"
+#    }
+    admin_username                  = "mysupport"
+    allow_extension_operations      = true # default value
+    computer_name                   = "uksouth-dev-registrar-ssr-1-1.example.com" # Hostname
+    disable_password_authentication = false
+    encryption_at_host_enabled      = true
+    name                            = "dev-ssr-registrar-1-vm" # VM name
+    size                            = "Standard_B1ms"
+    zone                            = "1"
+    user_data                       = "../scripts/user_data/registrar_userdata.sh"
+# identity and diags
+    identity = {
+      type = "SystemAssigned"
+    }
+#    boot_diagnostics = {
+#      storage_account_uri = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Storage/storageAccounts/storagessr1"
+#    }
+# Disk
+    os_disk = {
+      caching              = "ReadWrite"
+      diff_disk_settings   = {} # default value
+      disk_size_gb         = 30
+      name                 = "dev-ssr-registrar-1_OsDisk"
+      storage_account_type = "Standard_LRS" # DEV gets spinning rust 
+    }
+# OS ref
+    source_image_reference = {
+      offer     = "0001-com-ubuntu-server-jammy"
+      publisher = "Canonical"
+      sku       = "22_04-lts-gen2"
+      version   = "latest"
+    }
+# Network
+    ip_configuration = [{
+      name                          = "ipconfig1"
+      subnet_id                     = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/virtualNetworks/my-ssr-vnet/subnets/internal"
+      private_ip_address_allocation = "Static"
+      private_ip_address            = "192.168.250.21"
+      private_ip_address_version    = "IPv4"
+      public_ip_address_id          = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/publicIPAddresses/dev-ssr-registrar-1-wan-ip"
+    }]
+    name_nic                        = "dev-ssr-registrar-1"
+    nic_name                        = "dev-ssr-registrar-1-nic"
+    internal_dns_name_label         = "ssr001"
+    nsg_name                        = "dev-ssr-registrar-nsg"
+    nic_id                          = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/networkInterfaces/dev-ssr-registrar-1-nic"
+    nsg_id                          = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/networkSecurityGroups/dev-ssr-registrar-nsg"
+    internal_backend_address_pool_id         = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/loadBalancers/dev-uksouth-ssr-internal-lb/backendAddressPools/dev-uksouth-ssr-internal-lb-backendpool-01"
+    external_backend_address_pool_id         = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/loadBalancers/dev-uksouth-ssr-external-lb/backendAddressPools/dev-uksouth-ssr-external-lb-backendpool-01"
+    ip_configuration_name           = "ipconfig1"
+  }
+  "dev-ssr-registrar-2" = {
+# VM
+#    admin_ssh_key = {
+#      public_key = "***"
+#      username   = "mysupport"
+#    }
+    admin_username                  = "mysupport"
+    allow_extension_operations      = true # default value
+    computer_name                   = "uksouth-dev-registrar-ssr-2-2.example.com" # Hostname
+    disable_password_authentication = false
+    encryption_at_host_enabled      = true
+    name                            = "dev-ssr-registrar-2-vm" # VM name
+    size                            = "Standard_B1ms" # box sizing
+    zone                            = "2"
+    user_data                       = "../scripts/user_data/registrar_userdata.sh"
+# identity and diags
+    identity = {
+      type = "SystemAssigned"
+    }
+#    boot_diagnostics = {
+#      storage_account_uri = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Storage/storageAccounts/storagessr1"
+#    }
+# Disk
+    os_disk = {
+      caching              = "ReadWrite"
+      diff_disk_settings   = {} # default value
+      disk_size_gb         = 30
+      name                 = "dev-ssr-registrar-2_OsDisk"
+      storage_account_type = "Standard_LRS" # DEV gets spinning rust 
+    }  
+# OS ref
+    source_image_reference = {
+      offer     = "0001-com-ubuntu-server-jammy"
+      publisher = "Canonical"
+      sku       = "22_04-lts-gen2"
+      version   = "latest"
+    }
+# Networking
+    ip_configuration = [{
+      name                          = "ipconfig1"
+      subnet_id                     = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/virtualNetworks/my-ssr-vnet/subnets/internal"
+      private_ip_address_allocation = "Static"
+      private_ip_address            = "192.168.250.22"
+      private_ip_address_version    = "IPv4"
+      public_ip_address_id          = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/publicIPAddresses/dev-ssr-registrar-2-wan-ip"
+    }]
+    name_nic                        = "dev-ssr-registrar-2"
+    nic_name                        = "dev-ssr-registrar-2-nic"
+    internal_dns_name_label         = "ssr002"
+    nsg_name                        = "dev-ssr-registrar-nsg"
+    nic_id                          = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/networkInterfaces/dev-ssr-registrar-2-nic"
+    nsg_id                          = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/networkSecurityGroups/dev-ssr-registrar-nsg"
+    internal_backend_address_pool_id         = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/loadBalancers/dev-uksouth-ssr-internal-lb/backendAddressPools/dev-uksouth-ssr-internal-lb-backendpool-01"
+    external_backend_address_pool_id         = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/loadBalancers/dev-uksouth-ssr-external-lb/backendAddressPools/dev-uksouth-ssr-external-lb-backendpool-01"
+    ip_configuration_name           = "ipconfig1"
+  }
+}
+
+# Data disks attachments here
+registrar_managed_data_disk = {
+  "dev-ssr-registrar-1-dd" = {
+    disk_name                     = "dev-ssr-registrar-1_datadisk01"
+    storage_account_type          = "Standard_LRS"
+    create_option                 = "Empty"
+    disk_size_gb                  = 16
+    zone                          = "1"
+    on_demand_bursting_enabled    = false
+    public_network_access_enabled = false
+    trusted_launch_enabled        = false
+    upload_size_bytes             = 0
+  }
+  "dev-ssr-registrar-2-dd" = {
+    disk_name                     = "dev-ssr-registrar-2_datadisk01"
+    storage_account_type          = "Standard_LRS"
+    create_option                 = "Empty"
+    disk_size_gb                  = 16
+    zone                          = "2"
+    on_demand_bursting_enabled    = false
+    public_network_access_enabled = false
+    trusted_launch_enabled        = false
+    upload_size_bytes             = 0
+  }
+}
+
+# managed_data_disks_attachments
+registrar_managed_data_disks_attachment = {
+  "dev-ssr-registrar-1-dd" = {
+    virtual_machine_id        = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Compute/virtualMachines/dev-ssr-registrar-1-vm"
+    managed_disk_id           = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Compute/disks/dev-ssr-registrar-1_datadisk01"
+    lun                       = 1
+    caching                   = "None"
+    create_option             = "Attach"
+    write_accelerator_enabled = false
+  }
+  "dev-ssr-registrar-2-dd" = {
+    virtual_machine_id        = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Compute/virtualMachines/dev-ssr-registrar-2-vm"
+    managed_disk_id           = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Compute/disks/dev-ssr-registrar-2_datadisk01"
+    lun                       = 1
+    caching                   = "None"
+    create_option             = "Attach"
+    write_accelerator_enabled = false
+  }
+}
+# Availability set - if needed for ukw etc
+# management_availability_set
+management_availability_set = {
+  name                        = "dev-ukw-ssr-av"
+  platform_fault_domain_count = 2
+}
+
+# accountstorage 
+storage_account = {
+  "blob_storage_account" = {
+    name                             = "storagessr1" 
+    access_tier                      = "Cool"
+    min_tls_version                  = "TLS1_2"
+    default_to_oauth_authentication  = null
+    allow_nested_items_to_be_public  = false
+    shared_access_key_enabled        = false
+    public_network_access_enabled    = false
+    cross_tenant_replication_enabled = false
+    blob_properties = {
+      delete_retention_policy = {
+        days = 30
+      }
+    }
+  }
+}
+# containers
+storage_container = {
+  "backups_container" = { # again for the logs and backups
+    container_name        = "logsandbackups"
+    storage_account_name  = "storagessr1"
+    #storage_account_id    = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Storage/storageAccounts/storagessr1"
+    container_access_type = "private"
+  }
+}
+# Network rules - VPN and office IP's
+storage_network_rules = {
+  "blob_storage_account" = {
+    storage_account_id = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Storage/storageAccounts/storagessr1"
+    storage_account_name = "storagessr1"
+    default_action = "Deny"
+    bypass         = ["AzureServices"]
+    ip_rules       = ["1.2.3.4"]
+    virtual_network_subnet_ids = [
+      "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/virtualNetworks/my-ssr-vnet/subnets/internal"
+    ]
+    private_link_access = [{
+      endpoint_resource_id = "/subscriptions/your-subid-here/providers/Microsoft.Security/datascanners/StorageDataScanner"
+      endpoint_tenant_id   = "your-tenant-id-here"
+    }]
+  }
+}
+# Loadbalancer LB 
+# internal_load_balancer only here
+load_balancer = {
+  "internal_lb" = {
+    name = "dev-uksouth-ssr-internal-lb"
+    frontend_ip_configuration = {
+      name                          = "IntLoadBalancerFrontEnd"
+      subnet_id                     = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/virtualNetworks/my-ssr-vnet/subnets/internal"
+      private_ip_address            = "192.168.250.251"
+      private_ip_address_allocation = "Static"
+      private_ip_address_version    = "IPv4"
+    }
+    sku      = "Standard"
+    sku_tier = "Regional"
+  }
+  "external_lb" = {
+    name = "dev-uksouth-ssr-external-lb"
+    frontend_ip_configuration = {
+      name                          = "ExtLoadBalancerFrontEnd"
+      public_ip_address_id          = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/publicIPAddresses/dev-ssr-Loadbalancer-1-wan-ip"
+    }
+    sku      = "Standard"
+    sku_tier = "Regional"
+  }
+}
+# internal_load_balancer_backend_address_pool
+load_balancer_backend_address_pool = {
+  "internal_lb" = {
+    name               = "dev-uksouth-ssr-internal-lb-backendpool-01"
+    load_balancer_id   = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/loadBalancers/dev-uksouth-ssr-internal-lb"
+    #virtual_network_id = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/virtualNetworks/my-ssr-vnet"
+  }
+  "external_lb" = {
+    name               = "dev-uksouth-ssr-external-lb-backendpool-01"
+    load_balancer_id   = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/loadBalancers/dev-uksouth-ssr-external-lb"
+    #virtual_network_id = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/virtualNetworks/my-ssr-vnet"
+  }
+}
+# internal_load_balancer_backend_address_pool_addresses
+load_balancer_backend_address_pool_association = { # Moved to the registrar linux virtual machine for ease and re-use of the variables. 
+  "dev-uksouth-registrar-1" = {
+    network_interface_id    = "test"
+    ip_configuration_name   = "test"
+    backend_address_pool_id = "test"
+  }
+  "dev-uksouth-registrar-2" = {
+    network_interface_id    = "test"
+    ip_configuration_name   = "test"
+    backend_address_pool_id = "test"
+  }
+}
+
+# internal_load_balancer_probes
+load_balancer_probe = {
+  "dev-uksouth-ssr-internal-lb_healthprobe01" = {
+    name                = "dev-uksouth-ssr-internal-lb_hp01"
+    load_balancer_id    = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/loadBalancers/dev-uksouth-ssr-internal-lb"
+    protocol            = "Tcp"
+    port                = 5000
+    probe_threshold     = 1
+    interval_in_seconds = 5
+    number_of_probes    = 2
+  }
+  "dev-uksouth-ssr-external-lb_healthprobe01" = {
+    name                = "dev-uksouth-ssr-external-lb_hp01"
+    load_balancer_id    = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/loadBalancers/dev-uksouth-ssr-external-lb"
+    protocol            = "Tcp"
+    port                = 5000
+    probe_threshold     = 1
+    interval_in_seconds = 5
+    number_of_probes    = 2
+  }
+}
+
+# internal_load_balancer_rules
+load_balancer_rule = {
+  "dev-uksouth-ssr-internal-lb_rule01" = { # 5060 internal to LB
+    name                    = "dev-uksouth-ssr-internal-lb-rule01"
+    load_balancer_id        = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/loadBalancers/dev-uksouth-ssr-internal-lb"
+    protocol                = "Udp"
+    frontend_port           = 5060
+    backend_port            = 5060
+    probe_id                = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/loadBalancers/dev-uksouth-ssr-internal-lb/probes/dev-uksouth-ssr-internal-lb_hp01"
+    enable_floating_ip      = true
+    idle_timeout_in_minutes = 30
+    load_distribution       = "SourceIPProtocol" # Client IP and Protocol routing for session Persistence.
+    disable_outbound_snat   = false
+    enable_tcp_reset        = false
+    frontend_ip_configuration_name = "IntLoadBalancerFrontEnd"
+    backend_address_pool_id        = ["/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/loadBalancers/dev-uksouth-ssr-internal-lb/backendAddressPools/dev-uksouth-ssr-internal-lb-backendpool-01"]
+  }
+  "dev-uksouth-ssr-external-lb_rule02" = { # 5080 external to LB
+    name                    = "dev-uksouth-ssr-external-lb-rule02"
+    load_balancer_id        = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/loadBalancers/dev-uksouth-ssr-external-lb"
+    protocol                = "Udp"
+    frontend_port           = 5080
+    backend_port            = 5080
+    probe_id                = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/loadBalancers/dev-uksouth-ssr-external-lb/probes/dev-uksouth-ssr-external-lb_hp01"
+    enable_floating_ip      = true
+    idle_timeout_in_minutes = 30
+    load_distribution       = "SourceIPProtocol" # Client IP and Protocol routing for session Persistence.
+    disable_outbound_snat   = false
+    enable_tcp_reset        = false
+    frontend_ip_configuration_name = "ExtLoadBalancerFrontEnd"
+    backend_address_pool_id        = ["/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/loadBalancers/dev-uksouth-ssr-external-lb/backendAddressPools/dev-uksouth-ssr-external-lb-backendpool-01"]
+  }
+#  "dev-uksouth-ssr-internal-lb_rule02" = {
+#    name                    = "dev-uksouth-ssr-internal-lb_read-rule02"
+#    protocol                = "Tcp"
+#    frontend_port           = 5000
+#    backend_port            = 5000
+#    probe_id                = "/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/loadBalancers/dev-uksouth-ssr-internal-lb/probes/dev-uksouth-ssr-internal-lb_hp01"
+#    enable_floating_ip      = true
+#    idle_timeout_in_minutes = 30
+#    load_distribution       = "SourceIPProtocol"
+#    disable_outbound_snat   = false
+#    enable_tcp_reset        = false
+#    frontend_ip_configuration_name = "LoadBalancerFrontEnd"
+#    backend_address_pool_id        = ["/subscriptions/your-subid-here/resourceGroups/mysip-server-registrar_rg/providers/Microsoft.Network/loadBalancers/dev-uksouth-ssr-internal-lb/backendAddressPools/dev-uksouth-ssr-internal-lb-backendpool-01"]
+#  }
+}
